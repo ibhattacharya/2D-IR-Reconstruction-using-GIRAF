@@ -1,0 +1,13 @@
+\BOOKMARK [1][-]{section.1}{Introduction}{}% 1
+\BOOKMARK [1][-]{section.2}{Problem Formulation}{}% 2
+\BOOKMARK [1][-]{section.3}{Matricies of Convolutional Type}{}% 3
+\BOOKMARK [1][-]{section.4}{Problem Formulation}{}% 4
+\BOOKMARK [1][-]{section.5}{Majorization-Minimization Scheme}{}% 5
+\BOOKMARK [1][-]{section.6}{Simplications}{}% 6
+\BOOKMARK [2][-]{subsection.6.1}{Step one: Least-squares annihilation}{section.6}% 7
+\BOOKMARK [2][-]{subsection.6.2}{Step Two: Annihilating Filter Update}{section.6}% 8
+\BOOKMARK [2][-]{subsection.6.3}{Alternative mask updates}{section.6}% 9
+\BOOKMARK [1][-]{section.7}{Todo for Paper}{}% 10
+\BOOKMARK [1][-]{section.8}{Experiments}{}% 11
+\BOOKMARK [1][-]{section.9}{Conclusion}{}% 12
+\BOOKMARK [1][-]{section*.1}{References}{}% 13

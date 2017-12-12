@@ -1,0 +1,132 @@
+\documentclass[a4paper]{article}
+
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+
+\title{IRLS nuclear norm minimization for FRI annihilating filter method}
+\author{Greg Ongie}
+
+\begin{document}
+\maketitle
+
+\section{IRLS algorithm}
+Our goal is to recover the k-space data $\hat f$ on a rectangular Cartesian grid $\Delta \subseteq \mathbb{Z}^2$ from undersampled measurements $P_\Gamma \hat f = \mathbf b$, where $P_\Gamma$ is the projection onto the sampling set $\Gamma \subset{Z}^2$. We use the low-rank property of the annihilation matrix as a regularization prior on the data. This may be posed as
+\begin{equation}
+\label{eq:nucnorm}
+\min_{\widehat{f}} \|\mathcal{T}(\hat f)\|_* + \lambda \|P_\Gamma \hat f - \mathbf b\|^2_2
+\end{equation}
+where here $\mathcal{T}(\hat f)\in \mathbb{C}^{2M\times N}$ is a large structured matrix built from $\hat f$ representing the system of annihilation equations. Here $M$ is approximately the product of the dimensions of the reconstruction grid, and $N$ is the product of the dimensions of the annihilating filter. I will give more details on the structure of $\mathcal{T}(\hat f)$ in the next section.
+
+We will solve \eqref{eq:nucnorm} using the IRLS algorithm, which results in a series of quadratic sub-problems: 
+\begin{equation}
+\label{eq:step1}
+\hat f_{n+1} = \arg\min_{\hat f} \|\mathcal{T}(\hat f) \mathbf W_n^{1/2} \|_F^2 + \lambda \|P_\Gamma \hat f - \mathbf b\|^2_2
+\end{equation}
+where the \emph{weight matrix} $W_n$ is updated in every iterate according to
+\begin{equation}
+\label{eq:step2}
+\mathbf W_n = [\mathcal{T}(\hat f_n)^* \mathcal{T}(\hat f_n)]^{-1/2},
+\end{equation}
+Note that \eqref{eq:step1} may be solved with CG, which should be fast, but $W_n$ is updated using an SVD, which is the computational bottleneck here. The hope is that a decent solution can be obtained after only $\approx$10-20 iterates, rather than the $\approx$100 SVD's the singular value thresholding algorithm would require.
+
+\section{Simplifications}
+Now I will show how the iterates in \eqref{eq:step1} and \eqref{eq:step2} simplify in our setting, and how the scheme may be interpreted as alternating between enforcing an annihilation constraint and estimation of an annihilating filter.
+
+\subsection{Structure of $\mathcal{T}(\hat f)$}
+Given any k-space data $\hat g$ on all of $\Delta$, we define $\mathcal{T}(\hat g)$ as
+\[
+\mathcal{T}(\hat g) = \begin{bmatrix}\mathbf T_x \\ \mathbf T_y\end{bmatrix}
+\]
+where both $\mathbf T_x$ and $\mathbf T_y$ are block Toeplitz matrices (with Toeplitz blocks) which can be thought of as representing 2-D convolution with $\widehat{\partial x f} = -j\omega_x \hat f$ and $\widehat{\partial x f} = -j\omega_y \hat f$. That is, if $\mathbf c$ is any (vectorized) filter with indices in $\Lambda \subseteq \mathbb{Z}^2$, then $\mathbf T_x$ and $\mathbf T_y$ are defined by
+\begin{align*}
+\mathbf T_x \mathbf c & = P(\widehat{\partial_x f} \ast \mathbf c)\\
+\mathbf T_y \mathbf c & = P(\widehat{\partial_y f} \ast \mathbf c)
+\end{align*}
+where $P$ is projection onto indices where the convolution is valid, namely, the set $\Delta|\Lambda =\{l \in \Delta: k-l \in \Delta \text{ for all } k \in \Lambda\}$.
+
+\subsection{Step one: Least-squares annihilation}
+First, we focus on solving \eqref{eq:step1}. Consider the more general case where in place of $\mathbf W_n$ we have an arbitrary filterbank $\mathbf D = [\mathbf d_1,...,\mathbf d_n]$, i.e. each one of the columns $\mathbf d_i$ represents a filter, and we wish to solve for k-space data $\hat f$ which is best annihilated by each filter $\mathbf d_i$ in a least squares sense, subject to data constraints. Then we may solve
+\[
+\min_{\hat f} \|\mathcal{T}(\hat f) \mathbf D\|_F^2 + \lambda\|P_{\Gamma} \hat f - \mathbf b\|_2^2
+\]
+or, equivalently
+\[
+\min_{\hat f} \sum_{i=1}^m\|\mathcal{T}(\hat f) \mathbf d_i \|_2^2 + \lambda\|P_{\Gamma} \hat f - \mathbf b\|_2^2
+\]
+To help us find the gradient of the above cost function, define the linear operator $\mathcal{Q}_i$ by $\mathcal{Q}_i \hat f = \mathcal{T}(\hat f)\mathbf d_i = P(\mathbf d_i \ast \widehat{\nabla f})$, for all $I=1,...,n$. We may expand each $\mathcal{Q}_i$ into a series of linear operators 
+\[
+\mathcal{Q}_i = \mathbf P \mathbf C_i \mathbf M
+\]
+Here $\mathbf M$ is element-wise multiplication by $-j\boldsymbol\omega$, $ \mathbf C_i$ is convolution by the filter $\mathbf d_i$, and $\mathbf P$ is projection onto the set of valid convolution indices. Because of the projection, we may assume $\mathbf C_i$ is a circular convolution (provided we zero-pad things sufficiently), and so we may write $\mathbf C_i = \mathbf F \mathbf S_i \mathbf F^*$ where $\mathbf F$ is the 2-D DFT on a large grid, and $\mathbf S_i$ is a diagonal matrix representing pointwise multiplication by the inverse DFT of the filter $\mathbf d_i$. 
+
+In this notation, the problem is now to solve
+\[
+\min_{\hat f} \sum_{i=1}^m\|\mathcal{Q}_i \hat f\|_2^2 + \lambda\|P_{\Gamma} \hat f - \mathbf b\|_2^2,
+\]
+Computing the gradient of the objective and setting it equal to zero yields the linear system:
+\[
+\underbrace{\left(\sum_{i=1}^m \mathcal{Q}_i^*\mathcal{Q}_i  + \lambda P_{\Gamma}^* P_{\Gamma}\right )}_{\mathbf R} \hat f = \lambda P_{\Gamma}^* b
+\]
+and we have 
+\[
+ \mathcal{Q}_i^*\mathcal{Q}_i  = \mathbf M^* \mathbf C_i^* \mathbf P^*\mathbf P \mathbf C_i \mathbf M.
+\]
+If the reconstruction grid is large relative to the filter size, the projection operator $\mathbf P^*\mathbf P$ will be very close to identity. Hence, we propose making the approximation $\mathbf P^*\mathbf P \approx \mathbf I$, so that the above becomes 
+\[
+ \mathcal{Q}_i^*\mathcal{Q}_i  \approx \mathbf M^* \mathbf C_i^* \mathbf C_i \mathbf M = \mathbf M^* \mathbf F |\mathbf S_i|^2 \mathbf F^*\mathbf M 
+\]
+And so 
+\[
+\mathbf R = \mathbf M^* \mathbf F \left(\sum_{i=1}^m |\mathbf S_i|^2\right) \mathbf F^* \mathbf M + \lambda \mathbf P_{\Gamma}^* \mathbf P_{\Gamma}
+\]
+Therefore to apply $\mathbf R$ we only need to compute $\sum_i |\mathbf S_i|^2$, which can be thought of as multiplication with a gridded version of the sum-of-squares polynomial
+\begin{equation}
+\label{eq:sumofsquares}
+\overline{\mu}(\mathbf r) = \sum_{i=1}^m |\mu_i(\mathbf r)|^2.
+\end{equation}
+where $\mu_i(\mathbf r)$ is the inverse Fourier transform of $\mathbf d_i$, i.e.\ the trigonometric polynomial having coefficients $\mathbf d_i[\mathbf k], \mathbf k \in \Lambda$.
+\subsection{Step Two: Annihilating Mask Update}
+Now consider step 2 of the algorithm, the weight matrix update \eqref{eq:step2}. Recall that $\mathbf W_n = [\mathcal{T}(f_n)^* \mathcal{T}(f_n)]^{-1/2}$. Therefore, according to the previous section, the first step of the algorithm \eqref{eq:step1} becomes a least squares annihilation where the filter bank is specified by $\mathbf W_n^{1/2} = [\mathbf w_1,..., \mathbf w_N]$.
+
+Let $\mathcal{T}(f_n) = \mathbf U\boldsymbol \Sigma \mathbf V^*$ be the SVD. Then $\mathbf V = [\mathbf V_1, \mathbf V_0]$ where $\mathbf V_0$ is a basis of the null space of $\mathcal{T}(f_n)$, and hence a basis of annihilating filters. From $\mathbf W = \mathbf V \boldsymbol \Sigma^{-1} \mathbf V^*$, we have $\mathbf W^{1/2} = \mathbf V \boldsymbol \Sigma^{-1/2} = [\sigma_1^{-1/2} \mathbf v_1, \ldots, \sigma_n^{-1/2} \mathbf v_N]$. But step one of the algorithm only needs the sum-of-squares polynomial \eqref{eq:sumofsquares} defined by the filterbank, which in this case can be expressed as
+\begin{equation}
+\label{eq:mask1}
+\overline{\mu}(\mathbf r) = \sum_{i=1}^N \sigma_i^{-1} |\gamma_i(\mathbf r)|^2
+\end{equation}
+where $\gamma_i$ is the inverse Fourier transform of the filter $\mathbf v_i$. Note $\sigma_i^{-1}$ is small when corresponding filter is in the co-kernel (i.e.\ the ``signal subspace'') and will be large when it is in the nullspace $\mathbf V_n$ (i.e.\ when it is an annihilating filter). Therefore, we may interpret $\overline{\mu}$ as a regularized annihilating filter.
+
+Finally, note that in practice we actually use the $\epsilon$-regularized inverse on the singular values in \eqref{eq:mask1}, i.e. instead of using $\sigma^{-1}$, which is undefined for $\sigma = 0$, we use 
+\[
+\sigma_\epsilon^{-1} := \frac{1}{\max(\sigma,\epsilon)}
+\]
+or something similar. Typically, there is also a rule for shrinking $\epsilon\rightarrow 0$ as the iterates proceed, which speeds up the convergence.
+
+\subsection{Alternative mask updates}
+Rather than forming the mask according to \eqref{eq:mask1}, which weights the singular vectors by $\sigma^{-1}$ (or $\sigma_\epsilon^{-1}$), we can consider a general update of the form
+\begin{equation}
+\label{eq:mask2}
+\overline{\mu}(\mathbf r) = \sum_{i=1}^N \varphi(\sigma_i) |\gamma_i(\mathbf r)|^2
+\end{equation}
+Where $\varphi:\mathbb{R}^+\rightarrow \mathbb{R}^+$ is any weighting function which is large for small inputs. For example, for any $q>0$ we could choose
+\[
+\varphi(t) = t^{-q} 
+\]
+which generalizes the update \eqref{eq:mask1}. Choosing $q > 1$ could potentially work better, since this would further shrink filters corresponding to high singular values, and amplify filters in the null space, as desired. I did some experiments with $q=2$, and it shows superior performance to $q=1$. I believe this weighting corresponds replacing the nuclear norm with a Shatten $p$-norm for $p=1/q < 1$, but I need to check the details.
+
+Another choice would be the hard threshold
+\[
+\varphi(t) = \begin{cases}1 & \text{if } t < T\\ 0 & \text{else},\end{cases}
+\]
+for some $T > 0$, but this is not likely to be stable.
+
+Additionally, we could consider truncate the sum in \eqref{eq:mask2}, as
+\begin{equation}
+\label{eq:mask3}
+\overline{\mu}(\mathbf r) = \sum_{i=R}^N \varphi(\sigma_i) |\gamma_i(\mathbf r)|^2
+\end{equation}
+where $R$ is some estimate on a lower-bound of the true rank. This way, we give zero weight to the first $R$ filters corresponding to the highest singular values, which are not annihilating filters, and should not be incorporated into the mask. This showed good performance in experiments, too. I believe this corresponds to a weighting that would result from a LORAKS-type penalty in the original objective rather than the nuclear norm. 
+\end{document}
+

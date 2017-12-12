@@ -1,0 +1,11 @@
+function xh = getT(x,f,res,W)
+
+    Wh = zeros(res(1));
+    for ii = 1:prod(f)
+        Wh = Wh + (ifft2(padarray(reshape(W(:,ii),f(1),f(2)),[(res(1)-f(1))/2 (res(1)-f(2))/2],'both'))).^2;
+    end
+    %d = reshape(Wh,prod(res),1); clear Wh 
+    xh = fft(ifft2(reshape(x,res(1),res(2))).*d); 
+
+end
+

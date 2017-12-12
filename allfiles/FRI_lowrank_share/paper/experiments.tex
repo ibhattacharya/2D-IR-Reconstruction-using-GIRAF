@@ -1,0 +1,76 @@
+\documentclass[11pt,draftcls,onecolumn]{IEEEtran}
+%\documentclass[10pt, twocolumn, twoside]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{amsmath}
+\usepackage{cite}
+\usepackage{color}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+%\usepackage{pseudocode}
+%\usepackage[notref,notcite]{showkeys} % prints equation keys for easy referencing
+
+%custom commands
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\mbf}{\mathbf}
+\newcommand{\mbb}{\mathbb}
+\newcommand{\bs}{\boldsymbol}
+
+\newtheorem{thm}{Theorem}
+\newtheorem{assumption}{Assumption}
+\newtheorem{cor}[thm]{Corollary}
+\newtheorem{lem}[thm]{Lemma}
+\newtheorem{prop}[thm]{Proposition}
+\newtheorem{defn}[thm]{Definition}
+\newcommand{\inner}[1]{\left\langle #1\right\rangle}
+\begin{document}
+\section{Experiments}
+\subsection{Approximation of Toeplitz matrix by oversampled circulant matrix}
+For any (rectangular, symmetric) subset $S\subseteq\mathbb{Z}^n$, define $\mathbb{C}(S)$ to be the space of complex vectors $\mbf x$ of length $|S|$ indexed by $\mbf k \in S$. When it is clear from context, we will use $\mbf x$ to denote an element of both $\mathbb{C}^{|S|}$ and $\mathbb{C}(S)$, and $\mbf x[\mbf k]$ for the entry of $\mbf k$ at index $\mbf k\in S$.
+
+Suppose we want to recover a data vector $\mbf x \in \mathbb{C}(\Delta)$ from samples $P_\Gamma \mbf x = \mbf b \in \mathbb{C}(\Gamma)$. And suppose we have an annihilating filter $\mbf d \in \mathbb{C}(\Lambda)$. 
+
+Define $\mathcal{Q}\mbf x = \mathcal{T}(\mbf x) \mbf d = \mathcal{P}_{\Delta|\Lambda}[\mbf d \ast \mbf x] = \mathcal{P}_{\Delta|\Lambda}\mathcal{C}_\Delta\mbf x$, where $\mathcal{C}_\Delta$ is circular convolution with $\mbf d$ on a grid of size $\Delta$, and $\mathcal{P}_S$ denotes projection onto $S$. In the CG step we minimize problems of the form
+\[
+\min_{\mbf x \in \mathbb{C}(\Delta)} \|\mathcal{Q}\mbf x\|_2^2~~s.t.~~\mathcal{P}_{\Gamma}\mbf x = \mbf b.
+\]
+Writing $\mbf x = \mathcal{P}^*_\Gamma \mbf b + \mathcal{P}^*_{(\Delta-\Gamma)}\mbf y$, it is equivalent to solve
+\[
+\min_{\mbf y \in \mathbb{C}(\Delta-\Gamma)} \|\mathcal{Q}\mathcal{P}^*_\Gamma \mbf b + \mathcal{Q}\mathcal{P}^*_{(\Delta-\Gamma)}\mbf y\|_2^2
+\]
+which reduces to the linear system
+\[
+\mbf y\in\mathbb{C}(\Delta-\Gamma):~~
+(\mathcal{P}_{(\Delta-\Gamma)}\mathcal{R}\mathcal{P}^*_{(\Delta-\Gamma)})\mbf y = -\mathcal{P}^*_{(\Delta-\Gamma)}\mathcal{R}\mathcal{P}^*_\Gamma \mbf b.
+\]
+Here $\mathcal{R} = \mathcal{Q}^*\mathcal{Q} = \mathcal{C}^*_\Delta \mathcal{P}_{\Delta|\Lambda}^*\mathcal{P}_{\Delta|\Lambda}\mathcal{C}_\Delta$. We want to circumvent the projection step $\mathcal{P}_{\Delta|\Lambda}^*\mathcal{P}_{\Delta|\Lambda}$ in order to speed up applications of $\mathcal{R}$, and to allow for the sum-of-squares simplification when there are multiple annihilating filters. Hence, we look at a circulant approximation $\mathcal{R}_{\Delta'} = \mathcal{C}_{\Delta'}^*\mathcal{C}_{\Delta'}$ where $\Delta' \subseteq \Delta$ is some ``oversampled'' grid where we perform the FFTs, and then project back down to $\Delta$. Specifically, we solve
+\[
+\mbf z\in\mathbb{C}(\Delta'-\Gamma):~~
+(\mathcal{P}_{(\Delta'-\Gamma)}\mathcal{R}_{\Delta'}\mathcal{P}^*_{(\Delta'-\Gamma)})\mbf z = -\mathcal{P}_{(\Delta'-\Gamma)}\mathcal{R}_{\Delta'}\mathcal{P}^*_\Gamma \mbf b.
+\]
+and then obtain our approximate solution $\widetilde{\mbf y}\in\mathbb{C}(\Delta-\Gamma)$ as $\widetilde{\mbf y} = \mathcal{P}_{(\Delta-\Gamma)}\mbf z$ and we set $\widetilde{\mbf x}= \mathcal{P}^*_\Gamma \mbf b + \mathcal{P}^*_{(\Delta-\Gamma)}\widetilde{\mbf y}$. The goal is to show
+\[
+\|\mbf x - \widetilde{\mbf x}\| = \|\mbf y - \widetilde{\mbf y}\|\rightarrow 0
+\]
+as the size of oversampling grid $\Delta'$ grows arbitrarily large. We also consider the (more realistic) problem where we relax the data constraint:
+\[
+\min_{\mbf x \in \mathbb{C}(\Delta)} \|\mathcal{Q}\mbf x\|_2^2 + \lambda\|\mathcal{P}_{\Gamma}\mbf x - \mbf b\|_2^2.
+\]
+which reduces to the linear system
+\[
+\mbf x\in\mathbb{C}(\Delta):~~
+(\mathcal{C}_{\Delta}^*\mathcal{P}_{\Delta|\Lambda}^*\mathcal{P}_{\Delta|\Lambda}\mathcal{C}_{\Delta} + \lambda\mathcal{P}^*_\Gamma\mathcal{P}_\Gamma) \mbf x =\lambda\mathcal{P}^*_\Gamma \mbf b.
+\]
+and its approximated version
+\[
+\mbf z\in\mathbb{C}(\Delta'):~~
+(\mathcal{C}_{\Delta'}^*\mathcal{C}_{\Delta'} + \lambda\mathcal{P}^*_\Gamma\mathcal{P}_\Gamma) \mbf z =\lambda\mathcal{P}^*_\Gamma \mbf b.
+\]
+with $\widetilde{\mbf x} = P_\Delta(\mbf z)$.
+\end{document}
+

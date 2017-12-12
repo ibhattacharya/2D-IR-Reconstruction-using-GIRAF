@@ -1,0 +1,284 @@
+%\documentclass[11pt,draftcls,onecolumn]{IEEEtran}
+\documentclass[10pt, twocolumn, twoside]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{amsmath}
+\usepackage{cite}
+%\usepackage{caption}
+%\usepackage{subcaption}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{multirow}
+\usepackage{color}
+\usepackage{hyperref}
+%\usepackage{pseudocode}b
+%\usepackage[notref,notcite]{showkeys} % prints equation keys for easy referencing
+
+%custom commands
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\mbf}{\mathbf}
+\newcommand{\bs}{\boldsymbol}
+
+\newtheorem{proposition}{Proposition}
+
+\title{Fast Algorithm for Multi-dimensional Low Rank Hankel Matrix Recovery}
+\author{Greg Ongie*,~\IEEEmembership{Student Member,~IEEE}, Yasir Moshin,~\IEEEmembership{Student Member,~IEEE}, Mathews~Jacob,~\IEEEmembership{Senior Member,~IEEE}
+\thanks{
+G. Ongie is with the Department of Mathematics, University of Iowa, Y. Moshin and M. Jacob are with the Department of Electrical and Computer Engineering, University of Iowa, Iowa City, IA, 52245 USA (e-mail: gregory-ongie@uiowa.edu; yasir-moshin@uiowa.edu; mjacob@uiowa.edu)}
+\thanks{\textcolor{red}{This work is supported by grants NSF CCF-0844812, NSF CCF-1116067,  NIH 1R21HL109710-01A1, ACS RSG-11-267-01-CCE, and ONR-N000141310202.}}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We propose a new fast algorithm for the recovery of large scale low rank matricies having a multi-dimensional convolutional structure. This includes matricies having a Hankel or Toeplitz structure, and their higher dimensional analogues. We pose recovery of the matrix as the minimization of the Shatten p-norm as a surrogate for rank, which generalizes the commonly used nuclear norm penalty. We consider both convex and non-convex versions of this algorithm. Using a majorization-minimization (MM) scheme, we show we may exploit the convolutional structure to yield an SVD-free algorithm, which only requires few FFTs per iteration. The algorithm can be interpreted as alternating between the estimation of an annihilating filter and the estimation of the unknown matrix entries by linear prediction. We demonstrate the algorithm on the problem of multi-dimensional harmonic retrieval and multi-dimensional finite-rate-of-innovation MR image recovery, which is shown to be significantly faster than the current state-of-the-art algorithms based on singular value thresholding.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+A diverse set of problems in signal processing can be posed as the recovery of a structured low-rank matrix, including harmonic retrial/direction-of-arrival, phase retrival (?), etc. We are motivated in particular by structured low-rank matrix formulations now being posed for compressed sensing magnetic resonance image recovery, which began with an application self-calibrating parallel MRI, and has continued to include novel single coil recovery algorithms, and simuletanous multi-slice. This mode of image recovery has been shown to be very powerful, improving significantly over the previous state-of-the-art, such as total variation minimization (TV). However, these algorithms are computationally much more expensive than a simple TV-minimization, requiring several SVD's of a very large matrix, or several large dense matrix inversions.
+
+Early approaches to nuclear norm minimization were to solve an equivalent SDP, but this approach is only feasible for very small problem sizes. More modern approaches is to perform some form of singular value thresholding (SVT). 
+
+Various heuristics have been proposed to speed up these computations, including the well-known matrix factorization trick, which minimizes over all possible matrix factorizations subject to a Frobenius norm constraint.
+
+However, none of the above algorithms exploit the inherent low-dimensionality of the problem. Rather, typically the structure of the matrix is ignored, and solving the problem takes on the complexity of the higher-dimensional embedding.
+
+We show that for a large class of low-rank matricies which are convolutional in structural, i.e.\ matricies that represent a partial n-dimensional convolution or correlation.
+
+In the case p=1 (nuclear norm), our algorithm can be viewed an application of the iterative reweighted least squares algorithm proposed in []. However, our algorithm is more than a straightforward application of []; our algorithm involves many refinements.
+
+Our algorithm is closely related to the spectral MUSIC algorithm used in harmonic retrieval and direction-of-arrival (DOA) estimation.
+
+In particular, we show that our algorithm can be thought alternating between (1) an estimation of the nullspace of the structured matrix, equivalently, a filter-bank of annihilating filters, and (2) a least squares linear prediction step, which fills in the missing entries of the structured matrix by annihilation by the filter estimated in the first step.
+
+Things to cite: \cite{loraks,sake,xu2014precise,isbi2015,fazel2013hankel,mohan2012iterative}.
+
+\section{Problem Formulation}
+We are concerned with the class of problems that may be posed as
+\[
+\min_{\mbf x}~\text{rank}[\mathcal{T}(\mbf x)]\quad s.t.\quad \mbf A \mbf x = \mbf b
+\]
+where $\mbf x\in \mathbb{C}^n$ is the data vector to be recovered, $\mathcal{T}(\mbf x)$ is a structured lifting of $\mbf x$ to a matrix in $\mathbb{C}^{N\times M}$ of \emph{convolutional type} (defined below), $\mbf A$ is the measurement matrix, $\mbf b$ are the ideal measurements. 
+
+\section{Matricies of Convolutional Type}
+The algorithm we propose is applicable to a broad class of matricies which have a particular type of convolutional structure. Specifically, we call a matrix $\mbf X\in \mathbb{C}^{N\times M}$ \emph{convolutional type} if there exists a vector $\mbf x \in \mathbb{C}^n$, we call the \emph{data vector}, such that $\mbf X$ can be expressed as a composition of operators
+\begin{equation}
+\mbf X = \mathcal{P}\mathcal{C}(\mbf M \mbf x),
+\label{eq:convmat}
+\end{equation}
+where $\mbf M \in \mathbb{C}^{m \times n}$, $m \geq n$, is any full rank matrix, $\mathcal{C}[\mbf k]$ is the linear operator representing discrete multidimensional convolution with the kernel $\mbf k \in \mathbb{C}_0(\mathbb{Z}^d)$ in all of $\mathbb{C}(\mathbb{Z}^d)$ i.e.\ $\mathcal{C}[\mbf k]\mbf y = \mbf k \ast \mbf y$. Also the operator $\mathcal{P}:\mathbb{C}(\mathbb{Z}^d)\rightarrow\mathbb{C}^N$ is a projection onto a finite set of valid indices $\Delta \subseteq \mathbb{Z}^d$, $|\Delta| = N$.
+
+More generally, we will consider matrices are a vertical concatenation of matricies in the form \eqref{eq:convmat}, $\mbf X = [\mbf X_1^H,...,\mbf X_K^H]^H$, where each $\mbf X_i = \mathcal{P}_i\mathcal{C}[\mbf M_i \mbf x]$. In this case we require the matrix $\mbf M = [\mbf M_1,....,\mbf M_K]$ to be full rank.
+
+This definition generalizes Toeplitz and Hankel matrices to higher dimensions.
+
+For every decomposition in the form \eqref{eq:convmat} we also define a corresponding \emph{lifting operator} $\mathcal{T}(\mbf x) = \mathcal{P}\mathcal{C}(\mbf M \mbf x)$.
+
+The assumption that $\mathcal{T}(\mbf x)$ is low-rank is equivalent the existence of a collection of large collection of linearly independent \emph{annihilating filters} for the transformed data vector $\mbf y = \mbf M \mbf x$, i.e. each vector $\mbf d$ in the nullspace of $\mathcal{T}(\mbf x)$ satisfies
+\[
+\mathcal{T}(\mbf x)\mbf d = \mathcal{P}(\mbf y \ast \mbf d) = 0
+\]
+that is, convolution by $\mbf d$ annihilates $\mbf y$ (when restricted to the index set $\Delta$).
+\section{Problem Formulation}
+Our goal is to recover the data vector $\mbf x_0$ from its noisy linear measurements $\mathbf b = \mbf A \mbf x_0 + \mbf n$, where $\mbf A$ is the measurement matrix, and $\mbf n$ is a noise vector, which for simplicity we model as additive white Gaussian noise. Under the assumption that $\mathcal{T}(\mbf x_0)$ is the unique rank minimizer subject to the data constraints, we pose recovery as
+\begin{equation}
+\label{eq:nucnorm}
+\min_{\mbf x} \|\mathcal{T}(\mbf x)\|_p^p + \frac{\lambda}{2} \|\mbf A \mbf x - \mbf b\|^2_2,
+\end{equation}
+where $\|\cdot\|_p$ is the Shatten $p$-norm, $0 \leq p \leq 1$.
+
+
+\section{Majorization-Minimization Scheme}
+Recall that a majorization-minimization (MM) algorithm is a iterative method for minimizing a cost function, where at each iteration one minimizes a surrogate cost function that majorizes the original. More precisely, if $f(\mbf x)$ is any real-valued function on a domain $\Omega$, a function $g(\mbf x;\mbf x^*)$ is said to majorize $f(\mbf x)$ at the fixed value $\mbf x_0$ if
+\begin{align}\label{eq:MM1}
+g(\mbf x; \mbf x_0) & \geq f(\mbf x),~~\text{for all}~~\mbf x \in \Omega\\
+g(\mbf x_0; \mbf x_0) & = f(\mbf x_0),~~\text{for all}~~\mbf x \in \Omega
+\label{eq:MM2}
+\end{align}
+and if this holds for all $\mbf x_0 \in \Omega$ we call $g$ a \emph{majorizer} for $f$. We then solve 
+\[
+\min_{\mbf x \in \Omega} f(\mbf x)
+\]
+by instead solving the iterates
+\[
+\mbf x^{(n+1)} = \arg\min_{\mbf x \in \Omega} g(\mbf x;\mbf x^{(n)}).
+\]
+Using properties \eqref{eq:MM1} and \eqref{eq:MM2} it is easy to show the cost function $f$ must monotonically decrease at each iteration. Furthermore, if $f$ is convex, one can prove convergence of the iterates $\mbf x^{(n)}$ to the unique minimizer of $f$.
+
+We now construct a majorizer for the Shatten p-norm $\|\cdot\|^p_p$, including values $p \in [0,1)$ where the penalty is non-convex. First observe that we may write
+\[
+\|\mbf X\|^p_p = Tr[(\mbf X^*\mbf X)^{\frac{p}{2}}]
+\]
+Here the $q$th power $\mbf Y^q$ of any Hermitian positive semidefinite matrix $Y$ is defined as
+\[
+\mbf Y^q = \sum_i \lambda_i^q \mbf P_i 
+\]
+where $\mbf Y = \sum_i\lambda_i \mbf P_i$ is the spectral decomposition of $\mbf X$, i.e. $\lambda_i \geq 0$ are the eigenvalues of $\mbf X$ and $\mbf P_i$ are the orthogonal projectors onto the corresponding eigenspaces.
+
+Let $H^n_+$ denote the space of Hermitian positive semidefinite $n\times n$ matrices, $H^n_{++}$ the space of hermitian positive definite $n\times n$ matrices.
+\begin{proposition}
+ If $\mbf Y_0 \in H^n_{++}$ then for all $\mbf Y \in H^n_+$ we have
+ \[
+ Tr[\mbf Y^{q}] \leq Tr[\mbf Y_0^q + q \mbf Y_0^{q-1}(\mbf Y -\mbf Y_0)]
+ \]
+ for all $q \in (0, 1]$.
+ \label{prop:maj}
+\end{proposition}
+\begin{proof}
+This is a special case of Klein's inequality \footnote{See \url{https://en.wikipedia.org/wiki/Trace_inequalities\#Klein.27s_inequality}}, which states that for any differentiable concave function ${f:(0,\infty)\rightarrow\mathbb{R}}$ and any $\mbf Y \in H^n_+$, $\mbf Y_0\in H^n_{++}$ we have
+\begin{equation}
+Tr[f(\mbf Y)-f(\mbf Y_0)-f'(\mbf Y_0)(\mbf Y-\mbf Y_0)] \leq 0
+\label{eq:traceineq}
+\end{equation}
+where $f(\mbf X) := \sum_i f(\lambda_i)\mbf P_i$ when $\mbf X$ has the spectral decomposition $\mbf X = \sum_i\lambda_i \mbf P_i$. Choosing $f(t)=t^q$ gives the desired result.
+\end{proof}
+
+Provided $\mbf X_0 \in \mathbb{C}^{n\times m}$ has no zero singular values, substituting $\mbf Y = \mbf X^H\mbf X$, $\mbf Y_0 = \mbf X_0^H\mbf X_0$, and $q=p/2$ into \eqref{eq:traceineq}, we have that the function
+\begin{align*}
+g( \mbf X; \mbf X_0) & = 
+Tr[(\mbf X_0^H \mbf X_0)^{\frac{p}{2}} + \frac{p}{2} \mbf (\mbf X_0^H \mbf X_0)^{-\frac{(2-p)}{2}}(\mbf (\mbf X^H \mbf X) -\mbf (\mbf X_0^H \mbf X_0))]\\
+& = \frac{p}{2}\,Tr[(\mbf X_0^H \mbf X_0)^{-\frac{(2-p)}{2}}\mbf X^H \mbf X] + C(\mbf X_0)\\
+& = \frac{p}{2}\,\| \mbf X (\mbf X_0^H \,\mbf X_0)^{-\frac{(2-p)}{4}}\|_F^2 + C(\mbf X_0)
+\end{align*}
+satisfies the majorization relations
+\begin{align}\label{eq:MM1a}
+g(\mbf X; \mbf X_0) & \geq \|\mbf X\|_p^p,~~\text{for all}~~\mbf X, \mbf X_0\\
+g(\mbf X_0; \mbf X_0) & = \|\mbf X_0\|_p^p,~~\text{for all}~~\mbf X, \mbf X_0 \
+\label{eq:MM2a}
+\end{align}
+for all $p \in (0,1]$. Finally, setting $\mbf X = \mathcal{T}(\mbf x)$, gives the following MM scheme for \eqref{eq:nucnorm}:
+\begin{equation}
+\mbf x^{(n+1)} = \arg \min_{\mbf x} \frac{p}{2}\|\mathcal{T}(\mbf x) \mbf W\|_F^2 + \frac{\lambda}{2}\|\mbf A \mbf x -\mbf b\|_2^2
+\label{eq:step1}
+\end{equation}
+where $\mbf W$ is given by
+\begin{equation}
+\mbf W^{(n)} = [\mathcal{T}(\mbf x^{(n)})^H\mathcal{T}(\mbf x^{(n)})]^{-\frac{(2-p)}{4}}.
+\label{eq:step2}
+\end{equation}
+\section{Simplications}
+We now show how the iterates \eqref{eq:step1} and \eqref{eq:step2} simplify in our setting, and how the scheme may be interpreted as alternating between enforcing an annihilation constraint and estimation of an annihilating filter.
+\subsection{Step one: Least-squares annihilation}
+First, we focus on solving \eqref{eq:step1}. Consider the more general case where in place of $\mathbf W^{(n)}$ we have an arbitrary filterbank $\mathbf D = [\mathbf d_1,...,\mathbf d_N]$, i.e. each one of the columns $\mathbf d_i$ represents a filter, and we wish to solve for the data vector $\mbf x$ which is best annihilated by each filter $\mathbf d_i$ in a least squares sense, subject to data constraints. Then we may solve
+\[
+\min_{\mbf x} \|\mathcal{T}(\mbf x) \mathbf D\|_F^2 + \lambda\|\mbf A \mbf x - \mbf b\|_2^2
+\]
+or, equivalently,
+\[
+\min_{\mbf x} \sum_{i=1}^N\|\mathcal{T}(\mbf x) \mbf d_i \|_2^2 + \lambda\|\mbf A \mbf x - \mathbf b\|_2^2.
+\]
+Define the linear operator $\mathcal{Q}_i$ by 
+\[
+\mathcal{Q}_i \mbf x = \mathcal{T}(\mbf x)\mathbf d_i = \mathcal{P}(\mbf M\mbf x \ast \mbf d_i) = \mathcal{P}( \mbf d_i \ast \mbf M\mbf x)
+\]
+for all $i=1,\ldots,N$. Therefore, we may expand each $\mathcal{Q}_i$ as
+\[
+\mathcal{Q}_i = \mathcal{P} \mathbf C_i \mathbf M
+\]
+where $\mathbf C_i$ is convolution by the filter $\mathbf d_i$, and $\mathbf P$ is projection onto the set of valid convolution indices. Because of the projection, we may assume $\mathbf C_i$ is a \emph{circular} convolution, provided we zero-pad the vector $\mbf M \mbf x$ sufficiently, and so we may write $\mathbf C_i = \mathbf F \mathbf S_i \mathbf F^*$ where $\mathbf F$ is an $d$-dimensional DFT and $\mathbf S_i$ is a diagonal matrix representing pointwise multiplication by the inverse DFT of the zero-padded filter $\mathbf d_i$.
+
+In this notation, the problem now is to solve
+\[
+\min_{\mbf x} \sum_{i=1}^N\|\mathcal{Q}_i \mbf x\|_2^2 + \frac{\lambda}{2}\|\mbf A \mbf x - \mathbf b\|_2^2,
+\]
+Computing the gradient of the objective and setting it equal to zero yields the linear system:
+\[
+\underbrace{\left(\sum_{i=1}^N (\mathcal{Q}_i^*\mathcal{Q}_i)  + \lambda \mbf A^H\mbf A \right )}_{\mathbf R} \mbf x = \lambda \mbf A^H b
+\]
+and we have 
+\[
+ \mathcal{Q}_i^*\mathcal{Q}_i  = \mathbf M^* \mathbf C_i^* \mathcal{P}^*\mathcal{P} \mathbf C_i \mathbf M.
+\]
+If the projection set $\Delta \subseteq \mathbb{Z}^d$ is large relative to the filter size, the projection operator $\mathcal{P}^*\mathcal{P}$ will be close to identity. Hence, we propose making the approximation $\mathcal{P}^*\mathcal{P} \approx \mathbf I$, so that the above becomes 
+\[
+ \mathcal{Q}_i^*\mathcal{Q}_i  \approx \mathbf M^* \mathbf C_i^* \mathbf C_i \mathbf M = \mathbf M^* \mathbf F \mbf S_i^* \mbf S_i \mathbf F^*\mathbf M.
+\]
+We study this approximation in detail later.
+And so 
+\[
+\mathbf R = \mathbf M^* \mathbf F \left(\sum_{i=1}^N \mbf S_i^*\mbf S_i\right) \mathbf F^* \mathbf M + \lambda \mbf A^* \mbf A
+\]
+Therefore to apply $\mathbf R$ we only need to compute $\sum_i \mbf S_i^* \mbf S_i$, which can be thought of as pointwise multiplication with uniform samples of the sum-of-squares polynomial
+\begin{equation}
+\label{eq:sumofsquares}
+\overline{\mu}(\mathbf r) = \sum_{i=1}^N |\mu_i(\mathbf r)|^2.
+\end{equation}
+where $\mu_i(\mathbf r)$ is the inverse Fourier transform of $\mathbf d_i$, i.e.\ the trigonometric polynomial having coefficients $\mathbf d_i[\mathbf k], \mathbf k \in \Lambda$.
+\subsection{Step Two: Annihilating Filter Update}
+Now we show how to efficiently compute the weight matrix update \eqref{eq:step2}. Recall that $\mathbf W = [\mathcal{T}(\mbf x)^* \mathcal{T}(\mbf x)]^{-r}$ for some $r>0$ and some fixed data vector $\mbf x$. Therefore, according to the previous section, the first step of the algorithm \eqref{eq:step1} becomes a least squares annihilation where the filter bank is specified by $\mathbf W = [\mathbf w_1,..., \mathbf w_N]$.
+
+Note that the Gram matrix $\mathcal{T}(\mbf x)^* \mathcal{T}(\mbf x)$ may be computed efficiently as
+\begin{align}
+\mathcal{T}(\mbf x)^H \mathcal{T}(\mbf x) & = \mathcal{C}(\mbf M\mbf x)^*\mathcal{P}^*\mathcal{P}\mathcal{C}(\mbf M\mbf x)\\
+ & = \mathcal{F}^*\mathcal{D}^*\mathcal{F}\mathcal{F}^*\mathcal{C}_{D_\Delta}\mathcal{F}\mathcal{F}^*\mathcal{D}\mathcal{F}\\
+ & = \mathcal{F}^*\mathcal{D}^*\mathcal{C}_{D_\Delta}\mathcal{D}\mathcal{F} (???)
+\end{align}
+The entries of this matrix are given by $\langle \mbf y[\mbf k], \mbf y[\bs \ell]\rangle$, where $\mbf y[\mbf k]$ is any column of the matrix $\mathcal{P}\mathcal{C}(\mbf M\mbf x)$, indexed by $\mbf k\in\Lambda$, where $\Lambda$ is the filter support. But then $\mbf y[\mbf k]$ is any patch of $\mbf M \mbf x$ of size $\Lambda$ supported within $\Delta$ taken from $\mbf M \mbf x$, so $\langle \mbf y[\mbf k], \mbf y[\bs \ell]\rangle$ is the inner product of any two such patches of $\mbf M\mbf x$, and may be computed efficiently through an autocorrelation of $\mbf M \mbf x$ with itself.
+
+Let $(\mathbf U,\boldsymbol \Sigma, \mathbf V)$ be a singular value decomposition of $\mathcal{T}(\mbf x)$, i.e.\ $\mathcal{T}(\mbf x) = \mbf U \bs \Sigma \mbf V^H$.
+%Then $\mathbf V = [\mathbf V_1, \mathbf V_0]$ where $\mathbf V_0$ is a basis of the null space of $\mathcal{T}(f_n)$, and hence a basis of annihilating filters. 
+Then $\mathbf W = \mathbf V \boldsymbol \Sigma^{-r} \mathbf V^*$, which has the matrix square root $\mathbf W^{1/2} = \mathbf V \boldsymbol \Sigma^{-r/2} = [\sigma_1^{-r/2} \mathbf v_1, \ldots, \sigma_n^{-r/2} \mathbf v_N]$. But step one of the algorithm only needs the sum-of-squares polynomial \eqref{eq:sumofsquares} defined by the filterbank, which in this case can be expressed as
+\begin{equation}
+\label{eq:mask1}
+\overline{\mu}(\mathbf r) = \sum_{i=1}^N \sigma_i^{-r} |\gamma_i(\mathbf r)|^2
+\end{equation}
+where $\gamma_i$ is the inverse Fourier transform of the filter $\mathbf v_i[\mbf k]$, $\mbf k \in \Lambda$. Note $\sigma_i^{-r}$ is small when corresponding filter is in the row space of $\mathcal{T}(\mbf x)$ and will be large when it is in the null space of $\mathcal{T}(\mbf x)$ (i.e.\ when it is an annihilating filter). Therefore, we may interpret $\overline{\mu}$ as a regularized annihilating filter.
+
+Finally, note that in practice we actually use the $\epsilon$-regularized inverse on the singular values in \eqref{eq:mask1}, i.e. instead of using $\sigma^{-1}$, which is undefined for $\sigma = 0$, we use 
+\[
+\sigma_\epsilon^{-1} := \frac{1}{\max(\sigma,\epsilon)}
+\]
+or something similar. Typically, there is also a rule for shrinking $\epsilon\rightarrow 0$ as the iterates proceed, which speeds up the convergence.
+
+\subsection{Alternative mask updates}
+Rather than forming the mask according to \eqref{eq:mask1}, which weights the singular vectors by $\sigma^{-1}$ (or $\sigma_\epsilon^{-1}$), we can consider a general update of the form
+\begin{equation}
+\label{eq:mask2}
+\overline{\mu}(\mathbf r) = \sum_{i=1}^N \varphi(\sigma_i) |\gamma_i(\mathbf r)|^2
+\end{equation}
+Where $\varphi:\mathbb{R}^+\rightarrow \mathbb{R}^+$ is any weighting function which is large for small inputs. For example, for any $q>0$ we could choose
+\[
+\varphi(t) = t^{-q} 
+\]
+which generalizes the update \eqref{eq:mask1}. Choosing $q > 1$ could potentially work better, since this would further shrink filters corresponding to high singular values, and amplify filters in the null space, as desired. I did some experiments with $q=2$, and it shows superior performance to $q=1$. I believe this weighting corresponds replacing the nuclear norm with a Shatten $p$-norm for $p=1/q < 1$, but I need to check the details.
+
+Another choice would be the hard threshold
+\[
+\varphi(t) = \begin{cases}1 & \text{if } t < T\\ 0 & \text{else},\end{cases}
+\]
+for some $T > 0$, but this is not likely to be stable.
+
+Additionally, we could consider truncate the sum in \eqref{eq:mask2}, as
+\begin{equation}
+\label{eq:mask3}
+\overline{\mu}(\mathbf r) = \sum_{i=R}^N \varphi(\sigma_i) |\gamma_i(\mathbf r)|^2
+\end{equation}
+where $R$ is some estimate on a lower-bound of the true rank. This way, we give zero weight to the first $R$ filters corresponding to the highest singular values, which are not annihilating filters, and should not be incorporated into the mask. This showed good performance in experiments, too. I believe this corresponds to a weighting that would result from a LORAKS-type penalty in the original objective rather than the nuclear norm.
+\section{Todo for Paper}
+\begin{enumerate}
+\item Study $\mbf P^* \mbf P \approx \mbf I$ approximation.
+\item Study conditioning of Toeplitz system. Look at preconditioner?
+\end{enumerate}
+\section{Experiments}
+\begin{enumerate}
+\item Empirical justication for $\mbf P^* \mbf P \approx \mbf I$.
+\item 1-D/2-D spectral estimation on synthetic data, as in \cite{chen2014robust}.
+\begin{itemize}
+\item Plot of SNR vs. CPU Time / \# iterations
+\item Compare against singular value thresholding, UV factorization(?), LORAKS-style penalty.
+\end{itemize}
+\item 2-D PWC images--Shepp-Logan/Real Data? **ISBI
+\item Wavelet case **ISBI
+\end{enumerate}
+
+\section{Conclusion}
+
+\bibliographystyle{IEEEtran}
+\bibliography{IEEEabrv,refs}
+
+
+\end{document}

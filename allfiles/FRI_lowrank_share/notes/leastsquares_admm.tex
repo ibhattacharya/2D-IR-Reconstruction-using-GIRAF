@@ -1,0 +1,111 @@
+\documentclass[11pt,draftcls,onecolumn]{IEEEtran}
+%\documentclass[10pt, twocolumn, twoside]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{amsmath}
+\usepackage{cite}
+\usepackage{color}
+%\usepackage{caption}
+%\usepackage{subcaption}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+%\usepackage{pseudocode}
+%\usepackage[notref,notcite]{showkeys} % prints equation keys for easy referencing
+
+%custom commands
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\mbf}{\mathbf}
+\newcommand{\mbb}{\mathbb}
+\newcommand{\bs}{\boldsymbol}
+
+\newtheorem{thm}{Theorem}
+\newtheorem{assumption}{Assumption}
+\newtheorem{cor}[thm]{Corollary}
+\newtheorem{lem}[thm]{Lemma}
+\newtheorem{prop}[thm]{Proposition}
+\newtheorem{defn}[thm]{Definition}
+\newcommand{\inner}[1]{\left\langle #1\right\rangle}
+\begin{document}
+\section{ADMM Scheme}
+The original problem we want to solve is
+\[
+\min_x \|\mathcal{T}(\mbf x) \mbf D\|_F^2 + \lambda \|P_\Gamma \mbf x - \mbf b\|.
+\]
+or equivalently 
+\[
+\min_x \sum_{i=1}^N\|\mathcal{T}(\mbf x) \mbf d_i\|_F^2 + \lambda \|P_\Gamma \mbf x - \mbf b\|.
+\]
+where $\mbf D = [\mbf d_1,\ldots,\mbf d_N]$. Here we may write 
+\[
+\mathcal{T}(\mbf x)\mbf d = 
+\begin{bmatrix}
+\mbf P \mbf C_i \mbf M_x\\
+\mbf P \mbf C_i \mbf M_y
+\end{bmatrix}\mbf x
+\]
+or more compactly $\mathcal{T}(\mbf x)\mbf d = \mbf P \mbf C_i \mbf M\mbf x$, with $\mbf M = [\mbf M_x^*, \mbf M_y^*]^*$ and where $\mbf P$ and $\mbf C_i$ are understood to be applied to each block of $\mbf M\mbf x$.
+
+We introduce the splitting $\mbf Y = \mbf M \mbf x$, which gives the augmented cost:
+\[
+\min_{\mbf x,\mbf Y} \sum_{i=1}^N\|\mbf P \mbf C_i \mbf Y\|_F^2 + \lambda \|P_\Gamma \mbf x - \mbf b\|_2^2 + \gamma \| \mbf Y - \mbf M\mbf x + \mbf L \|_F^2.
+\]
+where $\gamma > 0$ is a fixed parameter, $\mbf L$ represents a collection of Lagrange multipliers. This results in the ADMM scheme:
+\begin{align}
+\label{eq:optY}
+\mbf Y^{(n+1)} & = \arg\min_{\mbf Y} \sum_{i=1}^N\|\mbf P \mbf C_i \mbf Y\|_F^2  + \gamma \| \mbf Y - \mbf M\mbf x^{(n)} + \mbf L^{(n)} \|_F^2\\
+\label{eq:optx}
+\mbf x^{(n+1)} & = \arg\min_{\mbf x} \lambda\|P_\Gamma \mbf x - \mbf b\|_2^2 + \gamma \| \mbf Y^{(n+1)} - \mbf M\mbf x + \mbf L^{(n)}\|_F^2\\
+\label{eq:optLam}
+\mbf L^{(n+1)} & = \mbf L^{(n)} +  \mbf Y^{(n+1)} - \mbf M\mbf x^{(n+1)}
+\end{align}
+To optimize \eqref{eq:optY}, we set its gradient equal to zero, and obtain
+\[
+\underbrace{\left[\sum_{i=1}^N (\mbf C_i^*\mbf P^*\mbf P \mbf C_i ) + \gamma \mbf I\right]}_{\mbf R}\mbf Y = \gamma(\mbf M\mbf x^{(n)} - \mbf L^{(n)})
+\]
+This we may solve by PCG. A natural preconditioner is to form a circulant approximation of $\mbf R$ by replacing the projection $\mbf P^*\mbf P$ with identity, i.e. 
+\[
+\mbf S = \sum_{i=1}^N (\mbf C_i^*\mbf C_i ) + \gamma \mbf I = \mbf F (\bs\Sigma + \gamma \mbf I)\mbf F^* 
+\]
+where $\bs \Sigma$ is a diagonal matrix representing multiplication by spatially gridded samples of the sum-of-squares polynomial, and so $\bs \Sigma + \gamma \mbf I$ can be interpreted as an annihilation mask with improved conditioning. Alternatively, we could use the preconditioner $\mbf S$ as a surrogate for $\mbf R$, which then could be solved exactly with two FFTs. This would be super-fast, since the whole least-squares problem would only require maybe $\sim 20-50$ FFTs, and not the current $\sim 2000$. 
+
+Subproblem \eqref{eq:optx} we can show has an analytical solution. Setting its gradient to zero, we have
+\[
+\left(\mbf P_\Gamma^*\mbf P_\Gamma + \frac{\gamma}{\lambda}\mbf M^*\mbf M\right) \mbf x = \mbf P_\Gamma^*\mbf b + \frac{\gamma}{\lambda}\mbf M^*(\mbf Y^{(n+1)} + \mbf L^{(n)}). 
+\]
+The matrix on the left is diagonal, so its inverse acts simply by an element-wise multiplication.
+
+\section{Multiple Priors}
+Consider the case of multiple low-rank priors
+\[
+\min_{\mbf x} \sum_j \|\mathcal{T}_j(\mbf x)\|_* + \lambda\|P_\Gamma \mbf x - \mbf b\|_2^2
+\]
+We may adapt the IRLS algorithm to this setting by solving iterates of
+\[
+\min_{\mbf x} \sum_j \|\mathcal{T}_j(\mbf x)\mbf H^{1/2}_1\|_F^2 + \lambda\|P_\Gamma \mbf x - \mbf b\|_2^2
+\]
+which may be recast as
+\[
+\min_{\mbf x,\mbf Y_j} \sum_j \sum_{i=1}^N\|\mbf P \mbf C_{i,j} \mbf Y_j\|_F^2 + \lambda \|P_\Gamma \mbf x - \mbf b\|_2^2 + \sum_j \gamma_j \| \mbf Y_j - \mbf M_j\mbf x + \mbf L_j \|_F^2.
+\]
+which is fully separable in terms of the $Y_j$. This gives
+\begin{align}
+\label{eq:optYj}
+\mbf Y_j^{(n+1)} & = \arg\min_{\mbf Y_j} \sum_{i=1}^N\|\mbf P \mbf C_{i,j} \mbf Y_j\|_F^2  + \gamma_j \| \mbf Y_j - \mbf M\mbf x^{(n)} + \mbf L^{(n)} \|_F^2\\
+\label{eq:optx2}
+\mbf x^{(n+1)} & = \arg\min_{\mbf x} \lambda\|P_\Gamma \mbf x - \mbf b\|_2^2 + \sum_j \gamma_j \| \mbf Y_j^{(n+1)} - \mbf M\mbf x + \mbf L^{(n)}\|_F^2\\
+\label{eq:optLamj}
+\mbf L_j^{(n+1)} & = \mbf L_j^{(n)} +  \mbf Y_j^{(n+1)} - \mbf M_j\mbf x^{(n+1)}
+\end{align}
+and problems \eqref{eq:optYj}, \eqref{eq:optx2} have solutions
+\[
+\left(\mbf P_\Gamma^*\mbf P_\Gamma + \frac{1}{\lambda}\sum_j \gamma_j \mbf M_j^*\mbf M_j\right) \mbf x = \mbf P_\Gamma^*\mbf b + \frac{1}{\lambda}\sum_j \gamma_j \mbf M_j^*(\mbf Y_j^{(n+1)} + \mbf L_j^{(n)}). 
+\]
+and
+\[
+\left[\sum_{i=1}^N (\mbf C_{i,j}^*\mbf C_{i,j} ) + \gamma \mbf I\right] \mbf Y_j = \gamma(\mbf M_j\mbf x^{(n)} - \mbf L_j^{(n)})
+\]
+\end{document}
+
